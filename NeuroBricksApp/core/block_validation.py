@@ -1,5 +1,5 @@
 """
-validation.py
+block_validation.py
 
 Description:
     이 모듈은 블록의 이름, 타입, 연결 정보가 유효한지 검증하는 함수를 제공합니다.
