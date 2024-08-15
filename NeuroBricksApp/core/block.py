@@ -8,6 +8,7 @@ Classes:
     - Block: 블록 객체
     - Connector: 블록 연결 정보 객체
 """
+from typing import Any
 
 from .block_validation import validate_block_name
 import inspect
@@ -19,6 +20,8 @@ class BlockConfig:
 
     Description:
         이 클래스는 블록 객체의 설정 정보(name, block_type등)을 저장하고 관리합니다
+        이 객체는 dictionary 형태로 각 attribution을 저장하고 __getattr__ 메소드를 통해 접근합니다.
+        cfg.key = value 또는 cfg.config["key"] = value 형태로 설정 정보를 추가할 수 있습니다.
 
     Example:
         cfg = BlockConfig(
@@ -29,6 +32,9 @@ class BlockConfig:
         )
         cfg.name = "TestConfig"
         cfg.description = "ABC"
+
+        print(cfg.name)
+        print(cfg.description)
     """
 
     def __init__(self, **kwargs):
@@ -46,6 +52,7 @@ class BlockConfig:
             super().__setattr__(key, value)
         else:
             self.config[key] = value
+
 
 
 class Block:
@@ -70,17 +77,14 @@ class Block:
         ports = {
             "in0": {
                 "name": "in0",
-                "connected": True,
                 "connected_port": ["Block2/out1"]
             },
             "in1": {
                 "name": "in1",
-                "connected": False,
                 "connected_port": []
             },
             "out0": {
                 "name": "out0",
-                "connected": True,
                 "connected_port": ["Block3/in0", "Block3/in1"]
             },
         }
@@ -139,14 +143,12 @@ class Block:
         self.ports = {}
         for i in range(num_inputs):
             self.ports[f"in{i}"] = {
-                "name": f"in{i}",
-                "connected": False,
+                "address": f"{self.name}/in{i}",
                 "connected_port": []
             }
         for i in range(num_outputs):
             self.ports[f"out{i}"] = {
-                "name": f"out{i}",
-                "connected": False,
+                "address": f"{self.name}/out{i}",
                 "connected_port": []
             }
 
@@ -169,25 +171,51 @@ class Block:
         # self.cfg.ports = self.ports
 
     def __call__(self, *args, **kwargs):
-        raise NotImplementedError("블럭의 작동 방식을 구현해야합니다")
+        raise NotImplementedError("You must implement __call__ method in subclass of Block")
 
-    def get_port_address(self, port: str) -> str:
+    def add_connection(self, port: str, target_address: str) -> None:
         """
-        블록의 포트 주소 반환
+        블록 객체 연결
 
         Description:
-            블록의 포트 주소를 반환합니다
+            블록 객체의 포트를 연결합니다.
 
         Args:
-            :param port: 블록의 포트 이름
-
-        Returns:
-            :return: 블록의 포트 주소
+            :param port: 연결할 블록 객체의 포트
+            :param target_address: 연결될 블록 객체의 포트
+            :return: 연결 성공 여부
         """
         if port not in self.ports.keys():
-            raise ValueError("Invalid port name")
-        return self.name+"/"+port
+            raise ValueError("Port does not exist")
 
+        if ("in" in port and
+                len(self.ports[port]["connected_port"]) >= 1):
+            raise ValueError("Input port is already connected")
+
+        if target_address in self.ports[port]["connected_port"]:
+            raise ValueError("Target port is already connected")
+
+        self.ports[port]["connected_port"].append(target_address)
+
+    def remove_connection(self, port: str, target_address: str) -> None:
+        """
+        블록 객체 연결 해제
+
+        Description:
+            블록 객체의 포트 연결을 해제합니다.
+
+        Args:
+            :param port: 연결할 블록 객체의 포트
+            :param target_address: 연결될 블록 객체의 포트
+            :return: 연결 해제 성공 여부
+        """
+        if port not in self.ports.keys():
+            raise ValueError("Port does not exist")
+
+        if target_address not in self.ports[port]["connected_port"]:
+            raise ValueError("Target port is not connected")
+
+        self.ports[port]["connected_port"].remove(target_address)
 
     def get_connections(self) -> list:
         """
@@ -203,10 +231,10 @@ class Block:
 
         for port in self.ports.keys():
             if self.ports[port]["connected"]:
-                connections.append((self.name + "/" + port, self.ports[port]["connected_port"]))
+                for connected_port in self.ports[port]["connected_port"]:
+                    connections.append((self.ports[port]["address"], connected_port))
 
         return connections
-
 
 class FunctionBlock(Block):
     def __init__(self, name: str,
@@ -229,12 +257,13 @@ class FunctionBlock(Block):
         :param kwargs: **kwargs
         """
         super().__init__(name=name, block_type="FunctionBlock", cfg=cfg, **kwargs)
-        self.function = function
-        print(inspect.signature(function).parameters)
-        print(self.cfg)
 
+        self.function = function
+
+        # 블럭의 input 개수랑 함수의 파라미터 개수가 일치하는지 확인
         if len(inspect.signature(function).parameters) != self.cfg.num_inputs:
-            raise ValueError("function의 input 수랑 cfg.num_inputs 수가 다릅니다.")
+            raise ValueError(f"Function parameter count({len(inspect.signature(function).parameters)})"
+                             f" must be equal to num_inputs({self.cfg.num_inputs})")
 
     def __call__(self, *args):
         return self.function(*args)
@@ -249,19 +278,16 @@ class BlockManager:
         블록 객체 리스트, 블록 연결 정보를 관리합니다
 
     Attributes:
-        - block_registry(dict): key: 블록 이름, value: 블록 객체
-        - connections(dict): 블록 연결 정보 저장
+        - block_registry(dict): key: 블록 이름 (str), value: 블록 객체 (block)
+        - connection_registry(dict): address -> address list (연결 정보)
 
     Methods:
         - __init__: 블록 매니저 객체 초기화
         - create_block: 블록 객체 생성
         - add_block: 블록 객체 추가
         - remove_block: 블록 객체 삭제
-        - connect_blocks: 블록 객체 연결
-        - disconnect_blocks: 블록 객체 연결 해제
-        - get_block: 블록 객체 반환
-        - get_blocks: 블록 객체 리스트 반환
-        - get_connections: 블록 연결 정보 반환
+        - add_connection: 블록 객체 연결
+        - remove_connection: 블록 객체 연결 해제
     """
 
     def __init__(self, block_registry=None, connection_registry=None) -> None:
@@ -272,8 +298,8 @@ class BlockManager:
             BlockManager 객체를 초기화합니다.
 
         Args:
-            :param block_registry: 블록 객체 리스트
-            :param connection_registry: 블록 연결 정보
+            :param block_registry: block_registry(기본값: None)
+            :param connection_registry: connection_registry(기본값: None)
         """
 
         self.BLOCK_TYPES = {
@@ -308,7 +334,7 @@ class BlockManager:
             raise ValueError("Invalid block name")
 
         if cfg.block_type in self.BLOCK_TYPES.keys():
-            return self.BLOCK_TYPES[cfg.block_type](name=cfg.name, cfg=cfg)
+            return self.BLOCK_TYPES[cfg.block_type](name=cfg.name, cfg=cfg, **cfg.config)
         else:
             raise ValueError("Invalid block type")
 
@@ -342,5 +368,90 @@ class BlockManager:
 
         del self.block_registry[block_name]
 
+    def add_connection(self, source_address: str, target_address: str) -> None:
+        """
+        블록 객체 연결
 
+        Description:
+            블록 객체를 연결합니다.
+
+        Args:
+            :param source_address: 연결할 블록 객체의 주소
+            :param target_address: 연결될 블록 객체의 주소
+        """
+        source_name, source_port = source_address.split("/")
+        target_name, target_port = target_address.split("/")
+
+        if (source_name not in self.block_registry.keys() or
+                target_name not in self.block_registry.keys()):
+            raise ValueError("Block does not exist")
+
+        if (source_port not in self.block_registry[source_name].ports.keys() or
+                target_port not in self.block_registry[target_name].ports.keys()):
+            raise ValueError("Port does not exist")
+
+        # connection_registry source_address 없으면 []로 초기화
+        if source_address not in self.connection_registry.keys():
+            self.connection_registry[source_address] = []
+
+        if target_address in self.connection_registry[source_address]:
+            raise ValueError("Connection already exists")
+
+        self.connection_registry[source_address].append(target_address)
+        self.block_registry[source_name].add_connection(source_port, target_address)
+        self.block_registry[target_name].add_connection(target_port, source_address)
+
+    def remove_connection(self, source_address: str, target_address: str) -> None:
+        """
+        블록 객체 연결 해제
+
+        Description:
+            블록 객체의 연결을 해제합니다.
+
+        Args:
+            :param source_address: 연결할 블록 객체의 주소
+            :param target_address: 연결될 블록 객체의 주소
+        """
+        if source_address not in self.connection_registry.keys():
+            raise ValueError("Source address does not exist")
+
+        if target_address not in self.connection_registry[source_address]:
+            raise ValueError("Connection does not exist")
+
+        self.connection_registry[source_address].remove(target_address)
+
+    def get_block(self, block_name: str) -> Any | None:
+        """
+        블록 객체 반환
+
+        Description:
+            블록 객체를 반환합니다.
+
+        Args:
+            :param block_name: 반환할 블록 객체의 이름
+        Returns:
+            :return: 블록 객체
+        """
+        if block_name not in self.block_registry.keys():
+            return None
+
+        return self.block_registry[block_name]
+
+    def get_connection(self, source_address: str) -> list:
+        """
+        블록 객체 연결 정보 반환
+
+        Description:
+            블록 객체의 연결 정보를 반환합니다.
+
+        Args:
+            :param source_address: 반환할 블록 객체의 주소
+        Returns:
+            :return: 블록 객체의 연결 정보
+        """
+        if source_address not in self.connection_registry.keys()\
+                or len(self.connection_registry[source_address]) == 0:
+            return []
+
+        return self.connection_registry[source_address]
 
