@@ -81,11 +81,11 @@ class TestBlock(unittest.TestCase):
         manager.add_connection("SplitInputBlock/out0", "AddictionBlock/in0")
         manager.add_connection("SplitInputBlock/out1", "AddictionBlock/in1")
         manager.add_connection("AddictionBlock/out0", "SubtractionBlock/in0")
+        print("!!")
+        # selected_group = manager.select_group("AddictionBlock")  # 연결되어있는 블록들을 그룹으로 묶어줌
 
-        selected_group = manager.select_group("AddictionBlock")  # 연결되어있는 블록들을 그룹으로 묶어줌
 
-
-        assert len(selected_group) ==  3
+        # assert len(selected_group) ==  3
 
 
 

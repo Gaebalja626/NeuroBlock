@@ -9,8 +9,10 @@ class BlockGroup:
     BlockManager Class
 
     Description:
-        이 클래스는 NeuroBricks 의 블록 매니저 객체를 정의합니다.\n
-        블록 객체 리스트, 블록 연결 정보를 관리합니다
+        이 클래스는 블럭 그룹을 생성하는 클래스입니다.
+        저장된 내부 블럭은 전부 잘 연결이 되어 있어야합니다!.
+        * start block, end block을 제외하고 모든 port가 잘 이어짐
+        * 순환 연결이 없는 Spanning Tree!
 
     Attributes:
         - block_registry(dict): key: 블록 이름 (str), value: 블록 객체 (block)
@@ -30,17 +32,12 @@ class BlockGroup:
         BlockManager 객체 초기화
 
         Description:
-            BlockManager 객체를 초기화합니다.
+            BlockGroup 객체를 초기화합니다.
 
         Args:
             :param block_registry: block_registry(기본값: None)
             :param connection_registry: connection_registry(기본값: None)
         """
-
-        self.BLOCK_TYPES = {
-            "Block": Block,
-            "FunctionBlock": FunctionBlock,
-        }
 
         if block_registry is None:
             block_registry = {}
@@ -50,28 +47,6 @@ class BlockGroup:
         self.block_registry = block_registry
         self.connection_registry = connection_registry
 
-    def create_block(self, cfg: BlockConfig, **kwargs) -> Block:
-        """
-        블록 객체 생성
-
-        Description:
-            BlockConfig 객체를 받아서 블록 객체를 생성합니다.
-            블록 객체를 생성할때, block registry에 블록 객체가 이미 있다면, ValueError를 발생합니다.
-            (추후 이름을 알아서 지어주도록 수정)
-        Returns:
-            :return: 생성된 블록 객체
-        """
-
-        for key, value in kwargs.items():
-            cfg.config[key] = value
-
-        if cfg.name in self.block_registry or not validate_block_name(cfg.name):
-            raise ValueError("Invalid block name")
-
-        if cfg.block_type in self.BLOCK_TYPES.keys():
-            return self.BLOCK_TYPES[cfg.block_type](name=cfg.name, cfg=cfg, **cfg.config)
-        else:
-            raise ValueError("Invalid block type")
 
     def add_block(self, block: Block) -> None:
         """
@@ -94,6 +69,7 @@ class BlockGroup:
 
         Description:
             블록 객체를 block registry에서 삭제합니다.
+            connections registry에서도 삭제합니다
 
         Args:
             :param block_name: 삭제할 블록 객체의 이름
@@ -101,7 +77,17 @@ class BlockGroup:
         if block_name not in self.block_registry.keys():
             raise ValueError("Block does not exist")
 
+        target_block = self.block_registry[block_name]
+        for port in target_block.ports.keys():
+            for connected_port in target_block.ports[port]["connected_port"]:
+                if "/out" in port:
+                    self.remove_connection(target_block.ports[port]["address"], connected_port)
+                else:
+                    self.remove_connection(connected_port, target_block.ports[port]["address"])
+
         del self.block_registry[block_name]
+
+
 
     def add_connection(self, source_address: str, target_address: str) -> None:
         """
@@ -190,6 +176,26 @@ class BlockGroup:
 
         return self.connection_registry[source_address]
 
+    def get_selected_group(self, block_name: str) -> list:
+        """
+        블록 하나를 선택하고, 연결되어있는 블록들을 그룹으로 묶어주고 start block, end block, validation 정보를 반환
+
+        Description:
+            블록 객체의 연결 정보를 반환합니다.
+
+        Args:
+            :param block_name: 반환할 블록 객체의 이름
+        Returns:
+            :return: 블록 객체의 연결 정보
+        """
+        if block_name not in self.block_registry.keys():
+            raise ValueError("Block does not exist")
+
+        selected_group = []
+        selected_group.append(block_name)
+        self._get_selected_group(block_name, selected_group)
+        return selected_group
+
 
 class BlockManager:
     """
@@ -244,7 +250,7 @@ class BlockManager:
         Description:
             BlockConfig 객체를 받아서 블록 객체를 생성합니다.
             블록 객체를 생성할때, block registry에 블록 객체가 이미 있다면, ValueError를 발생합니다.
-            (추후 이름을 알아서 지어주도록 수정)
+            //TODO: ( Block Manager에 서 이름을 알아서 지어주도록 수정)
         Returns:
             :return: 생성된 블록 객체
         """
