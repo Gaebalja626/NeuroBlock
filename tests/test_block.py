@@ -85,7 +85,7 @@ class TestBlock(unittest.TestCase):
         selected_group = manager.select_group("AddictionBlock")  # 연결되어있는 블록들을 그룹으로 묶어줌
 
 
-        assert len(selected_group) == 3
+        assert len(selected_group) ==  3
 
 
 
