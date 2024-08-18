@@ -52,8 +52,8 @@ class TestBlock(unittest.TestCase):
         manager.add_connection("AddictionBlock/out0", "SubtractionBlock/in0")
         manager.add_connection("AddictionBlock/out0", "SubtractionBlock/in1")
 
-        assert "SubtractionBlock/in0" in manager.get_connection("AddictionBlock/out0")
-        assert "SubtractionBlock/in1" in manager.get_connection("AddictionBlock/out0")
+        assert ("SubtractionBlock", "in0") in manager.get_connections("AddictionBlock")["out0"]
+        assert ("SubtractionBlock", "in1") in manager.get_connections("AddictionBlock")["out0"]
 
         assert manager.get_block("AddictionBlock") == block1
         assert manager.get_block("SubtractionBlock") == block2
@@ -108,9 +108,13 @@ class TestBlock(unittest.TestCase):
         selected_group = manager.get_selected_group("DisconnectedBlock")
         print(selected_group)
 
+        print(manager.get_connections("AddictionBlock"))
+
+
         manager.remove_block("AddictionBlock")
         selected_group = manager.get_selected_group("DisconnectedBlock")
         print(selected_group)
+        assert len(selected_group) == 1
 
     def test_DAG(self):
         from collections import defaultdict, deque

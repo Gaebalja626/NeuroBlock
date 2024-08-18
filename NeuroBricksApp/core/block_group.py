@@ -29,7 +29,6 @@ class BlockGraph:
         self.block_registry = block_registry
         self.connection_registry = connection_registry
 
-    @staticmethod
     def get_selected_group(self, block_name: str, block_register=None, connection_register=None) -> list:
         """
         블록 하나를 선택하고, 연결되어있는 블록들을 그룹으로 묶어주고
@@ -184,7 +183,10 @@ class BlockManager:
         _target_block = self.block_registry[block_name]
 
         for port in _target_block.ports:
+            _tmp = []
             for (connected_block, connected_port) in self.connection_registry[block_name][port]:
+                _tmp.append((connected_block, connected_port))
+            for connected_block, connected_port in _tmp:
                 self.remove_connection(f"{block_name}/{port}", f"{connected_block}/{connected_port}")
 
         del self.block_registry[block_name]
@@ -238,7 +240,9 @@ class BlockManager:
             raise ValueError("Connection does not exist")
 
         self.connection_registry[source_name][source_port].remove((target_name, target_port))
+        print(f"Remove connection: {source_name}/{source_port} -> {target_name}/{target_port}")
         self.connection_registry[target_name][target_port].remove((source_name, source_port))
+        print(f"Remove connection: {source_name}/{source_port} <- {target_name}/{target_port}")
 
     def get_block(self, block_name) -> Block | None:
         """
@@ -259,3 +263,40 @@ class BlockManager:
         if block_name not in self.connection_registry.keys():
             return {}
         return self.connection_registry[block_name]
+
+    def get_selected_group(self, block_name: str, block_register=None, connection_register=None) -> list:
+        """
+        블록 하나를 선택하고, 연결되어있는 블록들을 그룹으로 묶어주고
+        start block, end block, validation 정보를 반환
+
+        Description:
+            블록 객체의 연결 정보를 반환합니다.
+
+        Args:
+            :param block_name: 반환할 블록 객체의 이름
+        Returns:
+            :return: 블록 객체의 연결 정보
+        """
+        if block_register is None:
+            block_register = self.block_registry
+        if connection_register is None:
+            connection_register = self.connection_registry
+
+        if block_name not in block_register.keys():
+            raise ValueError("Block does not exist")
+
+        _connected_blocks = {}
+
+        _queue = deque([block_name])
+
+        while _queue:
+            _current_block = _queue.popleft()
+            _connected_blocks[_current_block] = True
+
+            _connected_block_set = set([connected_block[0][0]
+                                        for connected_block in connection_register[_current_block].values() if len(connected_block) > 0])
+            for connected_block in list(_connected_block_set):
+                if connected_block not in _connected_blocks:
+                    _queue.append(connected_block)
+
+        return list(_connected_blocks.keys())
