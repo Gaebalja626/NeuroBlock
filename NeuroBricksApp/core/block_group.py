@@ -3,28 +3,10 @@ from typing import Any
 from .block_validation import validate_block_name
 from .block import *
 import inspect
+from collections import deque, defaultdict
 
-class BlockGroup:
+class BlockGraph:
     """
-    BlockManager Class
-
-    Description:
-        이 클래스는 블럭 그룹을 생성하는 클래스입니다.
-        저장된 내부 블럭은 전부 잘 연결이 되어 있어야합니다!.
-        * start block, end block을 제외하고 모든 port가 잘 이어짐
-        * 순환 연결이 없는 Spanning Tree!
-
-    Attributes:
-        - block_registry(dict): key: 블록 이름 (str), value: 블록 객체 (block)
-        - connection_registry(dict): address -> address list (연결 정보)
-
-    Methods:
-        - __init__: 블록 매니저 객체 초기화
-        - create_block: 블록 객체 생성
-        - add_block: 블록 객체 추가
-        - remove_block: 블록 객체 삭제
-        - add_connection: 블록 객체 연결
-        - remove_connection: 블록 객체 연결 해제
     """
 
     def __init__(self, block_registry=None, connection_registry=None) -> None:
@@ -47,138 +29,11 @@ class BlockGroup:
         self.block_registry = block_registry
         self.connection_registry = connection_registry
 
-
-    def add_block(self, block: Block) -> None:
+    @staticmethod
+    def get_selected_group(self, block_name: str, block_register=None, connection_register=None) -> list:
         """
-        블록 객체 추가
-
-        Description:
-            블록 객체를 block registry에 추가합니다.
-
-        Args:
-            :param block: 추가할 블록 객체
-        """
-        if block.name in self.block_registry.keys():
-            raise ValueError("Block already exists")
-
-        self.block_registry[block.name] = block
-
-    def remove_block(self, block_name: str) -> None:
-        """
-        블록 객체 삭제
-
-        Description:
-            블록 객체를 block registry에서 삭제합니다.
-            connections registry에서도 삭제합니다
-
-        Args:
-            :param block_name: 삭제할 블록 객체의 이름
-        """
-        if block_name not in self.block_registry.keys():
-            raise ValueError("Block does not exist")
-
-        target_block = self.block_registry[block_name]
-        for port in target_block.ports.keys():
-            for connected_port in target_block.ports[port]["connected_port"]:
-                if "/out" in port:
-                    self.remove_connection(target_block.ports[port]["address"], connected_port)
-                else:
-                    self.remove_connection(connected_port, target_block.ports[port]["address"])
-
-        del self.block_registry[block_name]
-
-
-
-    def add_connection(self, source_address: str, target_address: str) -> None:
-        """
-        블록 객체 연결
-
-        Description:
-            블록 객체를 연결합니다.
-
-        Args:
-            :param source_address: 연결할 블록 객체의 주소
-            :param target_address: 연결될 블록 객체의 주소
-        """
-        source_name, source_port = source_address.split("/")
-        target_name, target_port = target_address.split("/")
-
-        if (source_name not in self.block_registry.keys() or
-                target_name not in self.block_registry.keys()):
-            raise ValueError("Block does not exist")
-
-        if (source_port not in self.block_registry[source_name].ports.keys() or
-                target_port not in self.block_registry[target_name].ports.keys()):
-            raise ValueError("Port does not exist")
-
-        # connection_registry source_address 없으면 []로 초기화
-        if source_address not in self.connection_registry.keys():
-            self.connection_registry[source_address] = []
-
-        if target_address in self.connection_registry[source_address]:
-            raise ValueError("Connection already exists")
-
-        self.connection_registry[source_address].append(target_address)
-        self.block_registry[source_name].add_connection(source_port, target_address)
-        self.block_registry[target_name].add_connection(target_port, source_address)
-
-    def remove_connection(self, source_address: str, target_address: str) -> None:
-        """
-        블록 객체 연결 해제
-
-        Description:
-            블록 객체의 연결을 해제합니다.
-
-        Args:
-            :param source_address: 연결할 블록 객체의 주소
-            :param target_address: 연결될 블록 객체의 주소
-        """
-        if source_address not in self.connection_registry.keys():
-            raise ValueError("Source address does not exist")
-
-        if target_address not in self.connection_registry[source_address]:
-            raise ValueError("Connection does not exist")
-
-        self.connection_registry[source_address].remove(target_address)
-
-    def get_block(self, block_name: str) -> Any | None:
-        """
-        블록 객체 반환
-
-        Description:
-            블록 객체를 반환합니다.
-
-        Args:
-            :param block_name: 반환할 블록 객체의 이름
-        Returns:
-            :return: 블록 객체
-        """
-        if block_name not in self.block_registry.keys():
-            return None
-
-        return self.block_registry[block_name]
-
-    def get_connection(self, source_address: str) -> list:
-        """
-        블록 객체 연결 정보 반환
-
-        Description:
-            블록 객체의 연결 정보를 반환합니다.
-
-        Args:
-            :param source_address: 반환할 블록 객체의 주소
-        Returns:
-            :return: 블록 객체의 연결 정보
-        """
-        if source_address not in self.connection_registry.keys()\
-                or len(self.connection_registry[source_address]) == 0:
-            return []
-
-        return self.connection_registry[source_address]
-
-    def get_selected_group(self, block_name: str) -> list:
-        """
-        블록 하나를 선택하고, 연결되어있는 블록들을 그룹으로 묶어주고 start block, end block, validation 정보를 반환
+        블록 하나를 선택하고, 연결되어있는 블록들을 그룹으로 묶어주고
+        start block, end block, validation 정보를 반환
 
         Description:
             블록 객체의 연결 정보를 반환합니다.
@@ -188,13 +43,28 @@ class BlockGroup:
         Returns:
             :return: 블록 객체의 연결 정보
         """
-        if block_name not in self.block_registry.keys():
+        if block_register is None:
+            block_register = self.block_registry
+        if connection_register is None:
+            connection_register = self.connection_registry
+
+        if block_name not in block_register.keys():
             raise ValueError("Block does not exist")
 
-        selected_group = []
-        selected_group.append(block_name)
-        self._get_selected_group(block_name, selected_group)
-        return selected_group
+        _connected_blocks = {}
+
+        _queue = deque([block_name])
+
+        while _queue:
+            _current_block = _queue.popleft()
+            _connected_blocks[_current_block] = True
+
+            _connected_block_set = set([connected_block for connected_block, _ in connection_register[_current_block].values()])
+            for connected_block in list(_connected_block_set):
+                if connected_block not in _connected_blocks:
+                    _queue.append(connected_block)
+
+        return list(_connected_blocks.keys())
 
 
 class BlockManager:
@@ -207,7 +77,7 @@ class BlockManager:
 
     Attributes:
         - block_registry(dict): key: 블록 이름 (str), value: 블록 객체 (block)
-        - connection_registry(dict): address -> address list (연결 정보)
+        - connection_registry(dict): "블록 이름" -> "포트" -> ("연결된 블록 이름", "포트") (연결 정보)
 
     Methods:
         - __init__: 블록 매니저 객체 초기화
@@ -216,6 +86,22 @@ class BlockManager:
         - remove_block: 블록 객체 삭제
         - add_connection: 블록 객체 연결
         - remove_connection: 블록 객체 연결 해제
+
+    Attributes Example:
+        block_registry = {
+            "AddictionBlock": Block,
+            "SubtractionBlock": Block,
+            "SplitInputBlock": Block,
+            "DisconnectedBlock": Block
+        }
+
+        connection_registry = {
+            "AddictionBlock": {
+                "in0": [("SplitInputBlock", "out0")],
+                "in1": [("SplitInputBlock", "out1")],
+                "out0": [],
+            },
+        }
     """
 
     def __init__(self, block_registry=None, connection_registry=None) -> None:
@@ -250,7 +136,7 @@ class BlockManager:
         Description:
             BlockConfig 객체를 받아서 블록 객체를 생성합니다.
             블록 객체를 생성할때, block registry에 블록 객체가 이미 있다면, ValueError를 발생합니다.
-            //TODO: ( Block Manager에 서 이름을 알아서 지어주도록 수정)
+            TODO: ( Block Manager에서 이름을 알아서 지어주도록 수정)
         Returns:
             :return: 생성된 블록 객체
         """
@@ -261,10 +147,10 @@ class BlockManager:
         if cfg.name in self.block_registry or not validate_block_name(cfg.name):
             raise ValueError("Invalid block name")
 
-        if cfg.block_type in self.BLOCK_TYPES.keys():
-            return self.BLOCK_TYPES[cfg.block_type](name=cfg.name, cfg=cfg, **cfg.config)
-        else:
+        if cfg.block_type not in self.BLOCK_TYPES.keys():
             raise ValueError("Invalid block type")
+
+        return self.BLOCK_TYPES[cfg.block_type](name=cfg.name, cfg=cfg, **cfg.config)
 
     def add_block(self, block: Block) -> None:
         """
@@ -272,7 +158,7 @@ class BlockManager:
 
         Description:
             블록 객체를 block registry에 추가합니다.
-
+            connection_registry에도 추가합니다.
         Args:
             :param block: 추가할 블록 객체
         """
@@ -280,6 +166,7 @@ class BlockManager:
             raise ValueError("Block already exists")
 
         self.block_registry[block.name] = block
+        self.connection_registry[block.name] = {port: [] for port in block.ports}
 
     def remove_block(self, block_name: str) -> None:
         """
@@ -287,22 +174,28 @@ class BlockManager:
 
         Description:
             블록 객체를 block registry에서 삭제합니다.
-
+            connections registry에서도 삭제합니다
         Args:
             :param block_name: 삭제할 블록 객체의 이름
         """
         if block_name not in self.block_registry.keys():
             raise ValueError("Block does not exist")
 
-        del self.block_registry[block_name]
+        _target_block = self.block_registry[block_name]
 
-    def add_connection(self, source_address: str, target_address: str) -> None:
+        for port in _target_block.ports:
+            for (connected_block, connected_port) in self.connection_registry[block_name][port]:
+                self.remove_connection(f"{block_name}/{port}", f"{connected_block}/{connected_port}")
+
+        del self.block_registry[block_name]
+        del self.connection_registry[block_name]
+
+    def add_connection(self, source_address, target_address):
         """
         블록 객체 연결
 
         Description:
             블록 객체를 연결합니다.
-
         Args:
             :param source_address: 연결할 블록 객체의 주소
             :param target_address: 연결될 블록 객체의 주소
@@ -310,75 +203,59 @@ class BlockManager:
         source_name, source_port = source_address.split("/")
         target_name, target_port = target_address.split("/")
 
-        if (source_name not in self.block_registry.keys() or
-                target_name not in self.block_registry.keys()):
+        if source_name not in self.block_registry.keys() or target_name not in self.block_registry.keys():
             raise ValueError("Block does not exist")
 
-        if (source_port not in self.block_registry[source_name].ports.keys() or
-                target_port not in self.block_registry[target_name].ports.keys()):
+        if source_port not in self.block_registry[source_name].ports or target_port not in self.block_registry[target_name].ports:
             raise ValueError("Port does not exist")
 
-        # connection_registry source_address 없으면 []로 초기화
-        if source_address not in self.connection_registry.keys():
-            self.connection_registry[source_address] = []
-
-        if target_address in self.connection_registry[source_address]:
+        if (target_name, target_port) in self.connection_registry[source_name][source_port]:
             raise ValueError("Connection already exists")
 
-        self.connection_registry[source_address].append(target_address)
-        self.block_registry[source_name].add_connection(source_port, target_address)
-        self.block_registry[target_name].add_connection(target_port, source_address)
+        self.connection_registry[source_name][source_port].append((target_name, target_port))
+        self.connection_registry[target_name][target_port].append((source_name, source_port))
 
-    def remove_connection(self, source_address: str, target_address: str) -> None:
+    def remove_connection(self, source_address, target_address):
         """
         블록 객체 연결 해제
 
         Description:
             블록 객체의 연결을 해제합니다.
-
         Args:
             :param source_address: 연결할 블록 객체의 주소
             :param target_address: 연결될 블록 객체의 주소
         """
-        if source_address not in self.connection_registry.keys():
-            raise ValueError("Source address does not exist")
+        source_name, source_port = source_address.split("/")
+        target_name, target_port = target_address.split("/")
 
-        if target_address not in self.connection_registry[source_address]:
+        if source_name not in self.block_registry.keys() or target_name not in self.block_registry.keys():
+            raise ValueError("Block does not exist")
+
+        if source_port not in self.block_registry[source_name].ports or target_port not in self.block_registry[target_name].ports:
+            raise ValueError("Port does not exist")
+
+        if (target_name, target_port) not in self.connection_registry[source_name][source_port]:
             raise ValueError("Connection does not exist")
 
-        self.connection_registry[source_address].remove(target_address)
+        self.connection_registry[source_name][source_port].remove((target_name, target_port))
+        self.connection_registry[target_name][target_port].remove((source_name, source_port))
 
-    def get_block(self, block_name: str) -> Any | None:
+    def get_block(self, block_name) -> Block | None:
         """
         블록 객체 반환
-
-        Description:
-            블록 객체를 반환합니다.
-
-        Args:
-            :param block_name: 반환할 블록 객체의 이름
-        Returns:
-            :return: 블록 객체
+        :param block_name:
+        :return: block
         """
         if block_name not in self.block_registry.keys():
             return None
-
         return self.block_registry[block_name]
 
-    def get_connection(self, source_address: str) -> list:
+    def get_connections(self, block_name) -> {}:
         """
         블록 객체 연결 정보 반환
-
-        Description:
-            블록 객체의 연결 정보를 반환합니다.
-
-        Args:
-            :param source_address: 반환할 블록 객체의 주소
-        Returns:
-            :return: 블록 객체의 연결 정보
+        :param block_name:
+        :return: list
         """
-        if source_address not in self.connection_registry.keys()\
-                or len(self.connection_registry[source_address]) == 0:
-            return []
-
-        return self.connection_registry[source_address]
+        if block_name not in self.connection_registry.keys():
+            return {}
+        return self.connection_registry[block_name]

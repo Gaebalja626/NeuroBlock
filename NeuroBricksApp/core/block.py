@@ -139,17 +139,11 @@ class Block:
         self.num_inputs = num_inputs
         self.num_outputs = num_outputs
 
-        self.ports = {}
+        self.ports = []
         for i in range(num_inputs):
-            self.ports[f"in{i}"] = {
-                "address": f"{self.name}/in{i}",
-                "connected_port": []
-            }
+            self.ports.append(f"in{i}")
         for i in range(num_outputs):
-            self.ports[f"out{i}"] = {
-                "address": f"{self.name}/out{i}",
-                "connected_port": []
-            }
+            self.ports.append(f"out{i}")
 
         self.position = position
 
@@ -172,68 +166,6 @@ class Block:
     def __call__(self, *args, **kwargs):
         raise NotImplementedError("You must implement __call__ method in subclass of Block")
 
-    def add_connection(self, port: str, target_address: str) -> None:
-        """
-        블록 객체 연결
-
-        Description:
-            블록 객체의 포트를 연결합니다.
-
-        Args:
-            :param port: 연결할 블록 객체의 포트
-            :param target_address: 연결될 블록 객체의 포트
-            :return: 연결 성공 여부
-        """
-        if port not in self.ports.keys():
-            raise ValueError("Port does not exist")
-
-        if ("in" in port and
-                len(self.ports[port]["connected_port"]) >= 1):
-            raise ValueError("Input port is already connected")
-
-        if target_address in self.ports[port]["connected_port"]:
-            raise ValueError("Target port is already connected")
-
-        self.ports[port]["connected_port"].append(target_address)
-
-    def remove_connection(self, port: str, target_address: str) -> None:
-        """
-        블록 객체 연결 해제
-
-        Description:
-            블록 객체의 포트 연결을 해제합니다.
-
-        Args:
-            :param port: 연결할 블록 객체의 포트
-            :param target_address: 연결될 블록 객체의 포트
-            :return: 연결 해제 성공 여부
-        """
-        if port not in self.ports.keys():
-            raise ValueError("Port does not exist")
-
-        if target_address not in self.ports[port]["connected_port"]:
-            raise ValueError("Target port is not connected")
-
-        self.ports[port]["connected_port"].remove(target_address)
-
-    def get_connections(self) -> list:
-        """
-        입력 & 출력 포트 정보 반환
-
-        Description:
-            블록의 입력 & 출력 포트 리스트를 반환합니다.
-
-        Returns:
-            :return: 블록의 입력 & 출력 포트 주소 리스트
-        """
-        connections = []  # tuple : (이 블럭의 포트, 연결된 블럭의 포트)
-
-        for port in self.ports.keys():
-            if self.ports[port]["connected"]:
-                for connected_port in self.ports[port]["connected_port"]:
-                    connections.append((self.ports[port]["address"], connected_port))
-
-        return connections
 
 class FunctionBlock(Block):
     def __init__(self, name: str,
