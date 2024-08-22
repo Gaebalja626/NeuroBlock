@@ -7,14 +7,13 @@ from PyQt6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QApplicatio
 
 
 class ConnectionUI(QGraphicsItem):
-    def __init__(self, start_pos: (float, float), end_pos: (float, float)):
+    def __init__(self, start_pos: QPointF, end_pos: QPointF):
         super().__init__()
-        self.start = start_pos
-        self.end = end_pos
+        self.tail = start_pos
+        self.head = end_pos
 
     def boundingRect(self):
-        return QRectF(min(self.start[0], self.end[0]), min(self.start[1], self.end[1]),
-                      abs(self.start[0] - self.end[0]), abs(self.start[1] - self.end[1]))
+        return QRectF(self.head, self.tail).normalized()
 
     def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget=None):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
@@ -23,7 +22,7 @@ class ConnectionUI(QGraphicsItem):
         painter.setPen(Qt.GlobalColor.black)
         painter.setBrush(Qt.GlobalColor.black)
 
-        line = QLineF(QPointF(self.start[0], self.start[1]), QPointF(self.end[0], self.end[1]))
+        line = QLineF(self.head, self.tail)
 
         angle = math.atan2(-line.dy(), line.dx())
 
@@ -48,16 +47,39 @@ class ConnectionUI(QGraphicsItem):
         # painter.drawLine(line)
         # painter.drawPolygon(arrow_head)
 
+class MainSpace(QGraphicsScene):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.drawing = False
+        self.start_pos = None
+        self.end_pos = None
+        self.setSceneRect(0, 0, 800, 600)
+
+
+    def mousePressEvent(self, event):
+        if self.drawing:
+            self.end_pos = event.scenePos()
+            connection = ConnectionUI(self.start_pos, self.end_pos)
+            self.addItem(connection)
+            self.drawing = False
+            print(self.end_pos)
+
+        else:
+            self.start_pos = event.scenePos()
+            self.drawing = True
+            print(self.start_pos)
+
 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     view = QGraphicsView()
-    scene = QGraphicsScene()
+    # scene = QGraphicsScene()
+    scene = MainSpace()
     view.setScene(scene)
 
-    connection_ui = ConnectionUI((0, 0), (100, 100))
+    connection_ui = ConnectionUI(QPointF(0,0), QPointF(100,100))
     scene.addItem(connection_ui)
 
     view.setGeometry(100, 100, 800, 600)

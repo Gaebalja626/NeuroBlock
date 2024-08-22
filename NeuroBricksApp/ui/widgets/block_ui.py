@@ -74,9 +74,9 @@ class _Block(QPushButton):
         self.dragging = False
         self._drag_start_point = None
 
-# todo 1. 드래그 이동을 오래하면 마우스 위치와 블럭 위치가 벌어짐
+# done 1. 드래그 이동을 오래하면 마우스 위치와 블럭 위치가 벌어짐
 #  -> 마우스 위치는 QPointF(float, float)인데 블럭 이동은 QPoint(int, int)라 소수점 버림하면서 생기는 차이인 듯. (..반올림을 할까?)
-#   -> 그냥 처음부터 모든 위치를 QPoint()로 통일해 해결(maybe.?)
+#   -> 그냥 처음부터 모든 위치를 QPoint()로 통일해 해결(maybe.? 아닌 거 같기도..)
 # todo 2. 아래처럼 마우스 위치는 크게 안 변함에도 블럭 위치가 갑자기 크게 이동하는 경우 생김.
 #  두번째 드래그 이후부터 해당 현상이 발생하는 걸로 보아 마우스 위치와 블럭의 origin 위치(좌측 상단) 간의.. 뭔가 차이에 의해 발생하는 걸로 의심 됨.
 #  이를 해결하기 위해 mouseReleaseEvent 때 다 None으로 초기화해줬지만 그럼에도 해결되지 않음. 일단 보류.
@@ -165,7 +165,8 @@ class BlockUI(QGraphicsItem):
     #   원하는 모습(port w=300, h=10(5씩 블럭과 겹침-ui 관련은 figma 파일 참고) / block w=300, h=90)
     #   block(x,y)
     #   in(x, y-5)
-    #   out(x, y+95)
+    #   out(x, y+85)
+
     def updatePortsPosition(self, diff=None):
         if diff is None:
             block_pos = self._block_proxy.widget().pos()
@@ -178,12 +179,13 @@ class BlockUI(QGraphicsItem):
         print("in: ",self._in_ports_proxy.pos())
         print("out: ", self._out_ports_proxy.pos())
 
+    # BlockUI가 바뀌는 게 아니라서 이 메소드(QGraphicsItem의 변화를 감지)로는 원하는 바를 못 이룸.
     # def itemChange(self, change, value):
     #     if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
     #         self.updatePortsPosition()
     #         print("===============changed==================")
     #     return super().itemChange(change, value)
-    # BlockUI가 바뀌는 게 아니라서 이 메소드로는(QGraphicsItem의 변화를 감지) 원하는 바를 못 이룸.
+
 
     # def mousePressEvent(self, event):
     #     super().mousePressEvent(event)
