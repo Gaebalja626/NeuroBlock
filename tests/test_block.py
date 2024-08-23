@@ -117,24 +117,29 @@ class TestBlock(unittest.TestCase):
         assert len(selected_group) == 1
 
     def test_block_graph(self):
-        block0 = block.FunctionBlock(name="SplitInputBlock",
+        block0 = block.FunctionBlock(name="입력분리블럭",
                                      display_name="입력 블럭",
-                                     function=lambda x: x,
+                                     function=lambda x: (x, x),
                                      num_inputs=1,
                                      num_outputs=2)
-        block1 = block.FunctionBlock(name="AddictionBlock",
-                                     display_name="더하기 블럭",
-                                     function=lambda x, y: math.sin(x + y),
-                                     num_inputs=2,
+        block1 = block.FunctionBlock(name="더하기블럭",
+                                     display_name="증가 블럭",
+                                     function=lambda x: x + 20,
+                                     num_inputs=1,
                                      num_outputs=1)
-        block2 = block.FunctionBlock(name="SubtractionBlock",
-                                     display_name="빼기 블럭",
-                                     function=lambda x: math.asin(x),
+        block2 = block.FunctionBlock(name="빼기블럭",
+                                     display_name="감소 블럭",
+                                     function=lambda x: x - 10,
                                      num_inputs=1,
                                      num_outputs=1)
 
-        block3 = block.FunctionBlock(name="DisconnectedBlock",
-                                     display_name="연결되지 않은 블럭",
+        block3 = block.FunctionBlock(name="곱하기블럭",
+                                     display_name="곱하기 블럭",
+                                     function=lambda x, y: x*y,
+                                     num_inputs=2,
+                                     num_outputs=1)
+        block4 = block.FunctionBlock(name="그냥블럭",
+                                     display_name="그냥 블럭",
                                      function=lambda x: x,
                                      num_inputs=1,
                                      num_outputs=1)
@@ -144,13 +149,20 @@ class TestBlock(unittest.TestCase):
         manager.add_block(block1)
         manager.add_block(block2)
         manager.add_block(block3)
-        manager.add_connection("SplitInputBlock/out0", "AddictionBlock/in0")
-        manager.add_connection("SplitInputBlock/out1", "AddictionBlock/in1")
-        manager.add_connection("AddictionBlock/out0", "SubtractionBlock/in0")
-
-        selected_blocks = manager.get_selected_group("SubtractionBlock")
-        graph = block_group.BlockGraph.create_graph(selected_blocks, manager.block_registry, manager.connection_registry)
-        print(graph)
+        manager.add_block(block4)
+        manager.add_connection("입력분리블럭/out0", "더하기블럭/in0")
+        manager.add_connection("입력분리블럭/out1", "빼기블럭/in0")
+        manager.add_connection("더하기블럭/out0", "곱하기블럭/in0")
+        manager.add_connection("빼기블럭/out0", "곱하기블럭/in1")
+        manager.add_connection("입력분리블럭/out0", "그냥블럭/in0")
+        selected_blocks = manager.get_selected_group("빼기블럭")
+        print(selected_blocks)
+        assert len(selected_blocks) == 5  # 입력분리, 뺴기, 더하기, 곱하기
+        graph = block_group.BlockGraph()
+        levels, start_blocks, end_blocks = graph.create_graph(selected_blocks, manager.block_registry, manager.connection_registry)
+        print(levels)
+        print('start blocks: ',start_blocks)
+        print('end blocks: ', end_blocks)
 
 
     def test_DAG(self):

@@ -206,7 +206,29 @@ class BlockManager:
             return {}
         return self.connection_registry[block_name]
 
-    def get_selected_group(self, block_name: str, block_register=None, connection_register=None) -> list:
+    def get_connected_blocks(self, block_name: str, in_port=False, out_port=False) -> list:
+        """
+        블록과 연결되어있는 블록들의 이름을 반환합니다
+
+        :param block_name:
+        :param in_port: Boolean, in port에 연결된 블록들을 반환할건지
+        :param out_port: Boolean, out port에 연결된 블록들을 반환할건지
+        :return: str
+        """
+        if block_name not in self.block_registry.keys():
+            raise ValueError(f"Block '{block_name}' does not exist")
+
+        _connected_blocks = []
+        for port in self.connection_registry[block_name]:
+            for connected_block in self.connection_registry[block_name][port]:
+                if in_port and "in" in port:
+                    _connected_blocks.append(connected_block[0])
+                if out_port and "out" in port:
+                    _connected_blocks.append(connected_block[0])
+
+        return list(set(_connected_blocks))
+
+    def get_selected_group(self, block_name: str) -> list:
         """
         블록 하나를 선택하고, 연결되어있는 블록들을 그룹으로 묶어주고
         start block, end block, validation 정보를 반환
@@ -220,12 +242,8 @@ class BlockManager:
         Returns:
             :return: 블록 객체의 연결 정보
         """
-        if block_register is None:
-            block_register = self.block_registry
-        if connection_register is None:
-            connection_register = self.connection_registry
 
-        if block_name not in block_register.keys():
+        if block_name not in self.block_registry.keys():
             raise ValueError("Block does not exist")
 
         _connected_blocks = {}
@@ -236,10 +254,8 @@ class BlockManager:
             _current_block = _queue.popleft()
             _connected_blocks[_current_block] = True
 
-            _connected_block_set = set([connected_block[0][0]
-                                        for connected_block in connection_register[_current_block].values() if
-                                        len(connected_block) > 0])
-            for connected_block in list(_connected_block_set):
+            _current_connected_blocks = self.get_connected_blocks(_current_block, in_port=True, out_port=True)
+            for connected_block in _current_connected_blocks:
                 if connected_block not in _connected_blocks:
                     _queue.append(connected_block)
 
@@ -280,18 +296,23 @@ class BlockGraph:
         """
 
         in_degree = {node: 0 for node in block_names}
+        out_degree = {node: 0 for node in block_names}
 
         for node in block_names:
             for port in connection_registry[node]:
-                if "in" in port:
+                if "out" in port:
                     for connected_block, connected_port in connection_registry[node][port]:
                         in_degree[connected_block] += 1
+                if "in" in port:
+                    for connected_block, connected_port in connection_registry[node][port]:
+                        out_degree[connected_block] += 1
 
         start_blocks = [node for node in in_degree if in_degree[node] == 0]
-        print(start_blocks)
+        end_blocks = [node for node in out_degree if out_degree[node] == 0]
+
 
         if len(start_blocks) == 0:
-            raise ValueError("No start block")
+            raise Exception("No start block")
 
         # 진입 차수가 0인 노드를 큐에 삽입
         queue = deque([node for node in in_degree if in_degree[node] == 0])
@@ -304,7 +325,7 @@ class BlockGraph:
                 current = queue.popleft()
                 levels[level].append(current)
                 for port in connection_registry[current]:
-                    if "in" in port:
+                    if "out" in port:
                         for connected_block, connected_port in connection_registry[current][port]:
                             in_degree[connected_block] -= 1
                             if in_degree[connected_block] == 0:
@@ -316,4 +337,5 @@ class BlockGraph:
         if sum(len(nodes) for nodes in levels.values()) != len(block_names):
             raise Exception("Graph has at least one cycle")
 
-        return levels
+
+        return levels, start_blocks, end_blocks
