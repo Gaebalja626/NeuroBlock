@@ -5,66 +5,6 @@ from .block import *
 import inspect
 from collections import deque, defaultdict
 
-class BlockGraph:
-    """
-    """
-
-    def __init__(self, block_registry=None, connection_registry=None) -> None:
-        """
-        BlockManager 객체 초기화
-
-        Description:
-            BlockGroup 객체를 초기화합니다.
-
-        Args:
-            :param block_registry: block_registry(기본값: None)
-            :param connection_registry: connection_registry(기본값: None)
-        """
-
-        if block_registry is None:
-            block_registry = {}
-        if connection_registry is None:
-            connection_registry = {}
-
-        self.block_registry = block_registry
-        self.connection_registry = connection_registry
-
-    def get_selected_group(self, block_name: str, block_register=None, connection_register=None) -> list:
-        """
-        블록 하나를 선택하고, 연결되어있는 블록들을 그룹으로 묶어주고
-        start block, end block, validation 정보를 반환
-
-        Description:
-            블록 객체의 연결 정보를 반환합니다.
-
-        Args:
-            :param block_name: 반환할 블록 객체의 이름
-        Returns:
-            :return: 블록 객체의 연결 정보
-        """
-        if block_register is None:
-            block_register = self.block_registry
-        if connection_register is None:
-            connection_register = self.connection_registry
-
-        if block_name not in block_register.keys():
-            raise ValueError("Block does not exist")
-
-        _connected_blocks = {}
-
-        _queue = deque([block_name])
-
-        while _queue:
-            _current_block = _queue.popleft()
-            _connected_blocks[_current_block] = True
-
-            _connected_block_set = set([connected_block for connected_block, _ in connection_register[_current_block].values()])
-            for connected_block in list(_connected_block_set):
-                if connected_block not in _connected_blocks:
-                    _queue.append(connected_block)
-
-        return list(_connected_blocks.keys())
-
 
 class BlockManager:
     """
@@ -72,7 +12,7 @@ class BlockManager:
 
     Description:
         이 클래스는 NeuroBricks 의 블록 매니저 객체를 정의합니다.\n
-        블록 객체 리스트, 블록 연결 정보를 관리합니다
+        블록 객체 리스트, 블록 연결 정보를 관리합니다 \n
 
     Attributes:
         - block_registry(dict): key: 블록 이름 (str), value: 블록 객체 (block)
@@ -208,7 +148,8 @@ class BlockManager:
         if source_name not in self.block_registry.keys() or target_name not in self.block_registry.keys():
             raise ValueError("Block does not exist")
 
-        if source_port not in self.block_registry[source_name].ports or target_port not in self.block_registry[target_name].ports:
+        if source_port not in self.block_registry[source_name].ports or target_port not in self.block_registry[
+            target_name].ports:
             raise ValueError("Port does not exist")
 
         if (target_name, target_port) in self.connection_registry[source_name][source_port]:
@@ -233,7 +174,8 @@ class BlockManager:
         if source_name not in self.block_registry.keys() or target_name not in self.block_registry.keys():
             raise ValueError("Block does not exist")
 
-        if source_port not in self.block_registry[source_name].ports or target_port not in self.block_registry[target_name].ports:
+        if source_port not in self.block_registry[source_name].ports or target_port not in self.block_registry[
+            target_name].ports:
             raise ValueError("Port does not exist")
 
         if (target_name, target_port) not in self.connection_registry[source_name][source_port]:
@@ -270,7 +212,8 @@ class BlockManager:
         start block, end block, validation 정보를 반환
 
         Description:
-            블록 객체의 연결 정보를 반환합니다.
+            선택된 블럭이 포함된 그래프를 찾아서 그룹을 선택해줍니다.
+            이걸 이제 실행가능하게 Block Graph에서 검사하고 실행가능하게 변경해줘야함
 
         Args:
             :param block_name: 반환할 블록 객체의 이름
@@ -294,9 +237,83 @@ class BlockManager:
             _connected_blocks[_current_block] = True
 
             _connected_block_set = set([connected_block[0][0]
-                                        for connected_block in connection_register[_current_block].values() if len(connected_block) > 0])
+                                        for connected_block in connection_register[_current_block].values() if
+                                        len(connected_block) > 0])
             for connected_block in list(_connected_block_set):
                 if connected_block not in _connected_blocks:
                     _queue.append(connected_block)
 
         return list(_connected_blocks.keys())
+
+
+class BlockGraph:
+    """
+    """
+
+    def __init__(self, block_registry=None, connection_registry=None) -> None:
+        """
+        BlockGraph 객체 초기화
+
+        Description:
+            BlockGroup 객체를 초기화합니다.
+
+        Args:
+            :param block_registry: block_registry(기본값: None)
+            :param connection_registry: connection_registry(기본값: None)
+        """
+
+        if block_registry is None:
+            block_registry = {}
+        if connection_registry is None:
+            connection_registry = {}
+
+        self.block_registry = block_registry
+        self.connection_registry = connection_registry
+
+    def create_graph(self, block_names: list, block_registry: dict, connection_registry: dict) -> Any:
+        """
+        블록 그래프 객체 생성
+
+        Description:
+            block manager에서 block_names들을 받고 블럭 그래프를 생성합니다.
+            만약, 실행이 불가능하다면 블럭 그래프를 생성하지 않고 ValueError를 발생합니다.
+        """
+
+        in_degree = {node: 0 for node in block_names}
+
+        for node in block_names:
+            for port in connection_registry[node]:
+                if "in" in port:
+                    for connected_block, connected_port in connection_registry[node][port]:
+                        in_degree[connected_block] += 1
+
+        start_blocks = [node for node in in_degree if in_degree[node] == 0]
+        print(start_blocks)
+
+        if len(start_blocks) == 0:
+            raise ValueError("No start block")
+
+        # 진입 차수가 0인 노드를 큐에 삽입
+        queue = deque([node for node in in_degree if in_degree[node] == 0])
+        levels = defaultdict(list)
+        level = 0
+
+        while queue:
+            next_queue = deque()
+            while queue:
+                current = queue.popleft()
+                levels[level].append(current)
+                for port in connection_registry[current]:
+                    if "in" in port:
+                        for connected_block, connected_port in connection_registry[current][port]:
+                            in_degree[connected_block] -= 1
+                            if in_degree[connected_block] == 0:
+                                next_queue.append(connected_block)
+            queue = next_queue
+            level += 1
+
+        # 그래프에 사이클이 있는 경우
+        if sum(len(nodes) for nodes in levels.values()) != len(block_names):
+            raise Exception("Graph has at least one cycle")
+
+        return levels

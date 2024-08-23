@@ -116,6 +116,43 @@ class TestBlock(unittest.TestCase):
         print(selected_group)
         assert len(selected_group) == 1
 
+    def test_block_graph(self):
+        block0 = block.FunctionBlock(name="SplitInputBlock",
+                                     display_name="입력 블럭",
+                                     function=lambda x: x,
+                                     num_inputs=1,
+                                     num_outputs=2)
+        block1 = block.FunctionBlock(name="AddictionBlock",
+                                     display_name="더하기 블럭",
+                                     function=lambda x, y: math.sin(x + y),
+                                     num_inputs=2,
+                                     num_outputs=1)
+        block2 = block.FunctionBlock(name="SubtractionBlock",
+                                     display_name="빼기 블럭",
+                                     function=lambda x: math.asin(x),
+                                     num_inputs=1,
+                                     num_outputs=1)
+
+        block3 = block.FunctionBlock(name="DisconnectedBlock",
+                                     display_name="연결되지 않은 블럭",
+                                     function=lambda x: x,
+                                     num_inputs=1,
+                                     num_outputs=1)
+
+        manager = block_group.BlockManager()
+        manager.add_block(block0)
+        manager.add_block(block1)
+        manager.add_block(block2)
+        manager.add_block(block3)
+        manager.add_connection("SplitInputBlock/out0", "AddictionBlock/in0")
+        manager.add_connection("SplitInputBlock/out1", "AddictionBlock/in1")
+        manager.add_connection("AddictionBlock/out0", "SubtractionBlock/in0")
+
+        selected_blocks = manager.get_selected_group("SubtractionBlock")
+        graph = block_group.BlockGraph.create_graph(selected_blocks, manager.block_registry, manager.connection_registry)
+        print(graph)
+
+
     def test_DAG(self):
         from collections import defaultdict, deque
 
@@ -159,7 +196,7 @@ class TestBlock(unittest.TestCase):
             '7': ['9'],
             '6': ['8'],
             '8': [],
-            '9': ['8', '5', '6'],
+            '9': ['8'],
         }
 
         try:
