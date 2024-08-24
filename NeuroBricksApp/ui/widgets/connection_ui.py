@@ -30,6 +30,7 @@ class ConnectionUI(QGraphicsItem):
                                        math.cos(angle + math.pi / 4) * arrow_size)
         arrow_p2 = line.p1() + QPointF(math.sin(angle + math.pi - math.pi / 4) * arrow_size,
                                        math.cos(angle + math.pi - math.pi / 4) * arrow_size)
+
         # arrow_head_shape == line (default)
         arrow_l1 = QLineF(line.p1(), arrow_p1)
         arrow_l2 = QLineF(line.p1(), arrow_p2)

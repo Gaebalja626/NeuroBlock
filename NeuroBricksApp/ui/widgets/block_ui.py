@@ -59,7 +59,7 @@ class _Block(QPushButton):
 
     def __init__(self, text):
         super().__init__(text)
-        self.diff:QPoint = None
+        self.diff:QPoint = QPoint(0,0)
         self.setFixedSize(300, 90)
         self.setStyleSheet("""
             QPushButton {
@@ -90,21 +90,25 @@ class _Block(QPushButton):
 
     def mousePressEvent(self, e):
         self.dragging = True
-        self._drag_start_point = e.globalPosition().toPoint()
+        # self._drag_start_point = e.globalPosition().toPoint()
+        self._drag_start_point = e.scenePosition().toPoint()
         print("=============clicked=============")
         print('start_pos =', self._drag_start_point)
 
     def mouseMoveEvent(self, e):
         if self.dragging:
-            diff = e.globalPosition().toPoint()-self._drag_start_point
-            self.move(diff)
-            self.positionChanged.emit(diff)
+            diff = e.scenePosition().toPoint()-self._drag_start_point
+            new_pos = self.pos() + diff
+            self.move(new_pos)
+            self.positionChanged.emit(new_pos)
             print('=========moving============')
             print('diff =', diff)
+            print('new_pos =', new_pos)
 
     def mouseReleaseEvent(self, e):
         self.dragging = False
         self.diff = None
+        # self.new_pos = None
         self._drag_start_point = None
         print('==========released============')
         pass
@@ -167,15 +171,15 @@ class BlockUI(QGraphicsItem):
     #   in(x, y-5)
     #   out(x, y+85)
 
-    def updatePortsPosition(self, diff=None):
-        if diff is None:
-            block_pos = self._block_proxy.widget().pos()
+    def updatePortsPosition(self, new_pos=None):
+        if new_pos is None:
+            block_pos = self._block_proxy.pos().toPoint()
         else:
-            block_pos = self._block_proxy.widget().pos()+diff
+            block_pos = new_pos
 
         self._in_ports_proxy.setPos(block_pos.x(), block_pos.y()-self.port_height/2)
         self._out_ports_proxy.setPos(block_pos.x(), block_pos.y()+self.block_height-self.port_height/2)
-        print("block:", block_pos)
+        print("block::", block_pos, '/', self._block_proxy.pos())
         print("in: ",self._in_ports_proxy.pos())
         print("out: ", self._out_ports_proxy.pos())
 
