@@ -1,4 +1,4 @@
-from NeuroBricksApp.core import block, block_validation, block_group
+from NeuroBricksApp.core import block, block_graph, block_manager
 import unittest
 import math
 import random
@@ -41,7 +41,7 @@ class TestBlock(unittest.TestCase):
         assert cfg1.kernel_size == [7, 1, 2]
 
     def test_BlockManager(self):
-        manager = block_group.BlockManager()
+        manager = block_manager.BlockManager()
         block1 = block.FunctionBlock(name="AddictionBlock",
                                      display_name="더하기 블럭",
                                      function=lambda x, y: x + y,
@@ -88,7 +88,7 @@ class TestBlock(unittest.TestCase):
                                      num_inputs=1,
                                      num_outputs=1)
 
-        manager = block_group.BlockManager()
+        manager = block_manager.BlockManager()
         manager.add_block(block0)
         manager.add_block(block1)
         manager.add_block(block2)
@@ -151,7 +151,7 @@ class TestBlock(unittest.TestCase):
                                      num_inputs=1,
                                      num_outputs=1)
 
-        manager = block_group.BlockManager()
+        manager = block_manager.BlockManager()
         manager.add_block(block0)
         manager.add_block(block1)
         manager.add_block(block2)
@@ -165,7 +165,7 @@ class TestBlock(unittest.TestCase):
         selected_blocks = manager.get_selected_group("빼기블럭")
         # print(selected_blocks)
         assert len(selected_blocks) == 5  # 입력분리, 뺴기, 더하기, 곱하기
-        graph = block_group.BlockGraph()
+        graph = block_graph.BlockGraph()
         levels, start_blocks, end_blocks = graph.create_graph(selected_blocks, manager.block_registry, manager.connection_registry)
         # print(levels)
 
@@ -203,7 +203,7 @@ class TestBlock(unittest.TestCase):
                                      function=lambda in0: random.randint(10, 30) + in0,
                                      num_inputs=1,
                                      num_outputs=1)
-        manager = block_group.BlockManager()
+        manager = block_manager.BlockManager()
         manager.add_block(block0)
         manager.add_block(block1)
         manager.add_block(block2)
@@ -221,74 +221,89 @@ class TestBlock(unittest.TestCase):
         selected_blocks = manager.get_selected_group("빼기블럭")
         # print(selected_blocks)
 
-        graph = block_group.BlockGraph()
+        graph = block_graph.BlockGraph()
         levels, start_blocks, end_blocks = graph.create_graph(selected_blocks, manager.block_registry, manager.connection_registry)
         print(levels)
 
         assert '입력블럭' in start_blocks
         assert '그냥블럭' in end_blocks
 
-        print(graph({
+        result = graph({
             '입력블럭': {
                 "in0": 3
             }
-        }))
+        })
+        print(result[0])
+        print(result[1])
 
+    def test_merged_block(self):
+        block0 = block.FunctionBlock(name="입력블럭",
+                                     display_name="입력 블럭",
+                                     function=lambda in0: in0,
+                                     num_inputs=1,
+                                     num_outputs=1)
+        block1 = block.FunctionBlock(name="더하기블럭",
+                                     display_name="증가 블럭",
+                                     function=lambda in0, in1: in0 + in1,
+                                     num_inputs=2,
+                                     num_outputs=1)
+        block2 = block.FunctionBlock(name="빼기블럭",
+                                     display_name="감소 블럭",
+                                     function=lambda in0: in0 - 10,
+                                     num_inputs=1,
+                                     num_outputs=1)
+        block3 = block.FunctionBlock(name="곱하기블럭",
+                                     display_name="곱하기 블럭",
+                                     function=lambda in0, in1, in2: in0*in1*in2,
+                                     num_inputs=3,
+                                     num_outputs=1)
+        block4 = block.FunctionBlock(name="그냥블럭",
+                                     display_name="그냥 블럭",
+                                     function=lambda in0: in0,
+                                     num_inputs=1,
+                                     num_outputs=1)
+        block5 = block.FunctionBlock(name="랜덤블럭",
+                                     display_name="랜덤 블럭",
+                                     function=lambda in0: random.randint(10, 30) + in0,
+                                     num_inputs=1,
+                                     num_outputs=1)
+        manager = block_manager.BlockManager()
+        manager.add_block(block0)
+        manager.add_block(block1)
+        manager.add_block(block2)
+        manager.add_block(block3)
+        manager.add_block(block4)
+        manager.add_block(block5)
+        manager.add_connection("입력블럭/out0", "더하기블럭/in0")
+        manager.add_connection("입력블럭/out0", "랜덤블럭/in0")
+        manager.add_connection("랜덤블럭/out0", "더하기블럭/in1")
+        manager.add_connection("더하기블럭/out0", "빼기블럭/in0")
+        manager.add_connection("더하기블럭/out0", "곱하기블럭/in0")
+        manager.add_connection("빼기블럭/out0", "곱하기블럭/in1")
+        manager.add_connection("랜덤블럭/out0", "곱하기블럭/in2")
+        manager.add_connection("곱하기블럭/out0", "그냥블럭/in0")
+        selected_blocks = manager.get_selected_group("빼기블럭")
+        # print(selected_blocks)
 
-    def test_DAG(self):
-        from collections import defaultdict, deque
+        graph = block_graph.BlockGraph()
+        levels, start_blocks, end_blocks = graph.create_graph(selected_blocks, manager.block_registry, manager.connection_registry)
+        # print(levels)
 
-        def topological_sort_with_levels(graph):
-            # 각 노드의 진입 차수를 계산
-            in_degree = {node: 0 for node in graph}
-            for node in graph:
-                for neighbor in graph[node]:
-                    in_degree[neighbor] += 1
+        assert '입력블럭' in start_blocks
+        assert '그냥블럭' in end_blocks
 
-            # 진입 차수가 0인 노드를 큐에 삽입
-            queue = deque([node for node in in_degree if in_degree[node] == 0])
-            levels = defaultdict(list)
-            level = 0
+        result = graph({
+            '입력블럭': {
+                "in0": 3
+            }
+        })
 
-            while queue:
-                next_queue = deque()
-                while queue:
-                    current = queue.popleft()
-                    levels[level].append(current)
-                    for neighbor in graph[current]:
-                        in_degree[neighbor] -= 1
-                        if in_degree[neighbor] == 0:
-                            next_queue.append(neighbor)
-                queue = next_queue
-                level += 1
+        merged_block = block.MergedBlock(name="MergedBlock", graph=graph)
+        print(merged_block.ports)
+        print(merged_block.input_connections)
+        print(merged_block.output_connections)
 
-            # 그래프에 사이클이 있는 경우
-            if sum(len(nodes) for nodes in levels.values()) != len(graph):
-                raise Exception("Graph has at least one cycle")
-
-            return levels
-
-        # 예시 그래프 (DAG)
-        graph = {
-            '1': ['2'],
-            '2': ['3', '7'],
-            '3': ['4'],
-            '4': ['5'],
-            '5': ['6'],
-            '7': ['9'],
-            '6': ['8'],
-            '8': [],
-            '9': ['8'],
-        }
-
-        try:
-            levels = topological_sort_with_levels(graph)
-            for level, nodes in levels.items():
-                print(f"Level {level}: {', '.join(nodes)}")
-        except Exception as e:
-            print(e)
-
-
+        print(merged_block(in0=3))
 
 
 if __name__ == "__main__":
