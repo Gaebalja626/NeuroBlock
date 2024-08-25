@@ -6,6 +6,7 @@ import inspect
 from collections import deque, defaultdict
 import copy
 
+
 class BlockManager:
     """
     BlockManager Class
@@ -67,6 +68,7 @@ class BlockManager:
 
         self.block_registry = block_registry
         self.connection_registry = connection_registry
+        self.levels = {}
 
     def create_block(self, cfg: BlockConfig, **kwargs) -> Block:
         """
@@ -145,12 +147,15 @@ class BlockManager:
         source_name, source_port = source_address.split("/")
         target_name, target_port = target_address.split("/")
 
-        if source_name not in self.block_registry.keys() or target_name not in self.block_registry.keys():
-            raise ValueError("Block does not exist")
+        if source_name not in self.block_registry.keys():
+            raise ValueError(f"Block '{source_name}' does not exist")
+        if target_name not in self.block_registry.keys():
+            raise ValueError(f"Block '{target_name}' does not exist")
 
-        if source_port not in self.block_registry[source_name].ports or target_port not in self.block_registry[
-            target_name].ports:
-            raise ValueError("Port does not exist")
+        if source_port not in self.block_registry[source_name].ports:
+            raise ValueError(f"Port '{source_port}' does not exist")
+        if target_port not in self.block_registry[target_name].ports:
+            raise ValueError(f"Port '{target_port}' does not exist")
 
         if (target_name, target_port) in self.connection_registry[source_name][source_port]:
             raise ValueError("Connection already exists")
@@ -287,6 +292,7 @@ class BlockGraph:
         self.connection_registry = connection_registry
         self.start_blocks = []
         self.end_blocks = []
+        self.levels = {}
 
     @staticmethod
     def find_start_end_blocks(block_names: list, connection_registry: dict, return_degree=False) -> Any:
@@ -393,10 +399,45 @@ class BlockGraph:
         # 4. levels에는 레벨별로 잘 정리됨
 
         for block_name in block_names:
-            self.block_registry[block_name] = copy.deepcopy(block_registry[block_name])
-            for port in connection_registry[block_name]:
-                for connected_block, connected_port in connection_registry[block_name][port]:
-                    self.connection_registry[block_name][port].append((connected_block, connected_port))
-                self.connection_registry[block_name] = copy.deepcopy(connection_registry[block_name])
+            self.block_registry[block_name] = block_registry[block_name]
+            self.connection_registry[block_name] = connection_registry[block_name]
+
+        self.levels = levels
+
         return levels, self.start_blocks, self.end_blocks
 
+    def __call__(self, input_dict=dict) -> tuple:
+        """
+        Input Example:
+        input = {
+            "StartBlock1": {
+                "in0": 1,
+                "in1": 2,
+            },
+            "StartBlock2": {
+                "in0": 3,
+                "in1": 4,
+            }
+        }
+        """
+
+        if set(input_dict.keys()) != set(self.start_blocks):
+            raise ValueError(f"Invalid input {input_dict.keys()} != {self.start_blocks}")
+
+        output = {}
+
+        for level in self.levels.values():
+            for block_name in level:
+                block = self.block_registry[block_name]
+                block_input = {}
+                if block_name in self.start_blocks:
+                    block_input = input_dict[block_name]
+                else:
+                    for port in self.connection_registry[block_name]:
+                        if "in" in port:
+                            for connected_block, connected_port in self.connection_registry[block_name][port]:
+                                block_input[port] = output[connected_block][connected_port]
+
+                output[block_name] = block(**block_input)
+
+        return {key: output[key] for key in self.end_blocks}, output

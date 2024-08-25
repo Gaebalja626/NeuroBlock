@@ -1,6 +1,7 @@
 from NeuroBricksApp.core import block, block_validation, block_group
 import unittest
 import math
+import random
 
 
 class TestBlock(unittest.TestCase):
@@ -14,7 +15,10 @@ class TestBlock(unittest.TestCase):
             "in0": 3,
             "in1": 5
         })
-        print(res)
+
+
+        assert list(res.values()) == [5, 3]
+
 
 
     def test_BlockConfig(self):
@@ -167,6 +171,68 @@ class TestBlock(unittest.TestCase):
 
         assert '입력분리블럭' in start_blocks
         assert '그냥블럭' in end_blocks
+
+    def test_block_graph_call(self):
+        block0 = block.FunctionBlock(name="입력블럭",
+                                     display_name="입력 블럭",
+                                     function=lambda in0: in0,
+                                     num_inputs=1,
+                                     num_outputs=1)
+        block1 = block.FunctionBlock(name="더하기블럭",
+                                     display_name="증가 블럭",
+                                     function=lambda in0, in1: in0 + in1,
+                                     num_inputs=2,
+                                     num_outputs=1)
+        block2 = block.FunctionBlock(name="빼기블럭",
+                                     display_name="감소 블럭",
+                                     function=lambda in0: in0 - 10,
+                                     num_inputs=1,
+                                     num_outputs=1)
+        block3 = block.FunctionBlock(name="곱하기블럭",
+                                     display_name="곱하기 블럭",
+                                     function=lambda in0, in1, in2: in0*in1*in2,
+                                     num_inputs=3,
+                                     num_outputs=1)
+        block4 = block.FunctionBlock(name="그냥블럭",
+                                     display_name="그냥 블럭",
+                                     function=lambda in0: in0,
+                                     num_inputs=1,
+                                     num_outputs=1)
+        block5 = block.FunctionBlock(name="랜덤블럭",
+                                     display_name="랜덤 블럭",
+                                     function=lambda in0: random.randint(10, 30) + in0,
+                                     num_inputs=1,
+                                     num_outputs=1)
+        manager = block_group.BlockManager()
+        manager.add_block(block0)
+        manager.add_block(block1)
+        manager.add_block(block2)
+        manager.add_block(block3)
+        manager.add_block(block4)
+        manager.add_block(block5)
+        manager.add_connection("입력블럭/out0", "더하기블럭/in0")
+        manager.add_connection("입력블럭/out0", "랜덤블럭/in0")
+        manager.add_connection("랜덤블럭/out0", "더하기블럭/in1")
+        manager.add_connection("더하기블럭/out0", "빼기블럭/in0")
+        manager.add_connection("더하기블럭/out0", "곱하기블럭/in0")
+        manager.add_connection("빼기블럭/out0", "곱하기블럭/in1")
+        manager.add_connection("랜덤블럭/out0", "곱하기블럭/in2")
+        manager.add_connection("곱하기블럭/out0", "그냥블럭/in0")
+        selected_blocks = manager.get_selected_group("빼기블럭")
+        # print(selected_blocks)
+
+        graph = block_group.BlockGraph()
+        levels, start_blocks, end_blocks = graph.create_graph(selected_blocks, manager.block_registry, manager.connection_registry)
+        print(levels)
+
+        assert '입력블럭' in start_blocks
+        assert '그냥블럭' in end_blocks
+
+        print(graph({
+            '입력블럭': {
+                "in0": 3
+            }
+        }))
 
 
     def test_DAG(self):
