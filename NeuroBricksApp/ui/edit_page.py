@@ -8,12 +8,10 @@ class Ui_MainWindow(object):
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
 
-        # Graphics View 설정
         self.scene = QtWidgets.QGraphicsScene()
         self.graphicsView = QtWidgets.QGraphicsView(self.scene, self.centralwidget)
         self.graphicsView.setGeometry(QtCore.QRect(0, 0, 1920, 1080))
 
-        # 버튼과 탭을 그래픽스 씬에 추가
         self.setupButtonsAndTabs()
 
         MainWindow.setCentralWidget(self.centralwidget)
@@ -21,13 +19,11 @@ class Ui_MainWindow(object):
         MainWindow.setStatusBar(self.statusbar)
 
     def setupButtonsAndTabs(self):
-        # 도구 탭과 에디터 탭 설정
         tools_tab = QtWidgets.QTabWidget()
         edit_tab = QtWidgets.QTabWidget()
         tools_tab.setGeometry(QtCore.QRect(0, 110, 241, 950))
         edit_tab.setGeometry(QtCore.QRect(246, 110, 1670, 950))
 
-        # 도구 및 에디터 위젯 생성 및 추가
         tool_layer_widget = QtWidgets.QWidget()
         tool_data_widget = QtWidgets.QWidget()
         tool_custom_widget = QtWidgets.QWidget()
@@ -37,19 +33,15 @@ class Ui_MainWindow(object):
         tools_tab.addTab(tool_custom_widget, "Custom")
         edit_tab.addTab(QtWidgets.QWidget(), "Editor")
 
-        # QGraphicsProxyWidget을 통해 위젯을 씬에 추가
         tools_proxy = self.scene.addWidget(tools_tab)
         editor_proxy = self.scene.addWidget(edit_tab)
 
-        # 위치 조정
         tools_proxy.setPos(0, 110)
         editor_proxy.setPos(246, 110)
 
-        # 추가 버튼 및 기타 인터페이스 요소 설정
         self.addButtons()
 
     def addButtons(self):
-        # 버튼 위치 및 아이콘 설정
         icons = [
             "icons8-folder-48.png", "icons8-save-48.png", "icons8-export-32.png",
             "icons8-process-48.png", "icons8-brain-48.png", "icons8-pipeline-48.png",
