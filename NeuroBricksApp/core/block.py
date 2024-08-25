@@ -10,19 +10,18 @@ Classes:
 """
 from typing import Any
 
-from .block_validation import validate_block_name
+from ..utils.config import Config
 import inspect
+from collections.abc import Iterable
 
-
-class BlockConfig:
+class BlockConfig(Config):
     """
     BlockConfig Class
 
     Description:
-        이 클래스는 블록 객체의 설정 정보(name, block_type등)을 저장하고 관리합니다
-        이 객체는 dictionary 형태로 각 attribution을 저장하고 __getattr__ 메소드를 통해 접근합니다.
-        cfg.key = value 또는 cfg.config["key"] = value 형태로 설정 정보를 추가할 수 있습니다.
-
+        이 클래스는 Config 객체를 상속받아 Block 객체의 설정 정보를 저장합니다.\n
+        각 Block는 BlockConfig 객체를 생성하여 Block 객체의 설정 정보를 저장합니다.
+        이때
     Example:
         cfg = BlockConfig(
             in_channels=3,
@@ -196,5 +195,15 @@ class FunctionBlock(Block):
             raise ValueError(f"Function parameter count({len(inspect.signature(function).parameters)})"
                              f" must be equal to num_inputs({self.cfg.num_inputs})")
 
-    def __call__(self, *args):
-        return self.function(*args)
+    def __call__(self,*args, **kwargs):
+        if args and kwargs:
+            raise ValueError("You must use only args or kwargs")
+        if args:
+            result = self.function(*args)
+        else:
+            result = self.function(**kwargs)
+
+        if isinstance(result, Iterable) and hasattr(result, "__getitem__"):
+            return {f"out{i}": result[i] for i in range(len(result))}
+        else:
+            return {"out0": result}

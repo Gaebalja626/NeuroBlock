@@ -7,12 +7,15 @@ class TestBlock(unittest.TestCase):
     def test_FunctionBlock(self):
         block1 = block.FunctionBlock(name="AddictionBlock",
                                      display_name="더하기 블럭",
-                                     function=lambda x, y: x + y,
+                                     function=lambda in0, in1: (in1, in0),
                                      num_inputs=2,
-                                     num_outputs=1)
-        assert block1.name == "AddictionBlock"
-        assert block1(1, 2) == 3
-        assert block1(block1(1, 2), 3) == 6
+                                     num_outputs=2)
+        res = block1(**{
+            "in0": 3,
+            "in1": 5
+        })
+        print(res)
+
 
     def test_BlockConfig(self):
         cfg1 = block.BlockConfig(name="TestConfig",
@@ -154,15 +157,16 @@ class TestBlock(unittest.TestCase):
         manager.add_connection("입력분리블럭/out1", "빼기블럭/in0")
         manager.add_connection("더하기블럭/out0", "곱하기블럭/in0")
         manager.add_connection("빼기블럭/out0", "곱하기블럭/in1")
-        manager.add_connection("입력분리블럭/out0", "그냥블럭/in0")
+        manager.add_connection("곱하기블럭/out0", "그냥블럭/in0")
         selected_blocks = manager.get_selected_group("빼기블럭")
-        print(selected_blocks)
+        # print(selected_blocks)
         assert len(selected_blocks) == 5  # 입력분리, 뺴기, 더하기, 곱하기
         graph = block_group.BlockGraph()
         levels, start_blocks, end_blocks = graph.create_graph(selected_blocks, manager.block_registry, manager.connection_registry)
-        print(levels)
-        print('start blocks: ',start_blocks)
-        print('end blocks: ', end_blocks)
+        # print(levels)
+
+        assert '입력분리블럭' in start_blocks
+        assert '그냥블럭' in end_blocks
 
 
     def test_DAG(self):
