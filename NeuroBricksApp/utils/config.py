@@ -8,7 +8,10 @@ class Config:
     Config Class
 
     Description:
-        이 클래스는 정 정보(name, block_type등)을 저장하고 관리합니다
+        이 클래스는 config 객체를 정의합니다.
+        config 객체는 dictionary 형태로 각 attribution을 저장하고 __getattr__ 메소드를 통해 접근합니다.
+        cfg.key = value 또는 cfg.config["key"] = value 형태로 설정 정보를 추가할 수 있습니다.
+        이 객체를 상속 받아서 추가적으로 필요한 config 기능을 구현합니다.
 
     Example:
         cfg = Config(

@@ -10,19 +10,20 @@ Classes:
 """
 from typing import Any
 
-from .block_validation import validate_block_name
+from ..utils.config import Config
+from .block_graph import BlockGraph
 import inspect
+from collections.abc import Iterable
 
 
-class BlockConfig:
+class BlockConfig(Config):
     """
     BlockConfig Class
 
     Description:
-        이 클래스는 블록 객체의 설정 정보(name, block_type등)을 저장하고 관리합니다
-        이 객체는 dictionary 형태로 각 attribution을 저장하고 __getattr__ 메소드를 통해 접근합니다.
-        cfg.key = value 또는 cfg.config["key"] = value 형태로 설정 정보를 추가할 수 있습니다.
-
+        이 클래스는 Config 객체를 상속받아 Block 객체의 설정 정보를 저장합니다.\n
+        각 Block는 BlockConfig 객체를 생성하여 Block 객체의 설정 정보를 저장합니다.
+        이때
     Example:
         cfg = BlockConfig(
             in_channels=3,
@@ -36,22 +37,6 @@ class BlockConfig:
         print(cfg.name)
         print(cfg.description)
     """
-
-    def __init__(self, **kwargs):
-        self.config = kwargs
-
-    def __str__(self):
-        attributes = ', '.join(f"{key}={value}" for key, value in self.config.items())
-        return f"BlockConfig({attributes})"
-
-    def __getattr__(self, item):
-        return self.config.get(item, None)
-
-    def __setattr__(self, key, value):
-        if key == "config":
-            super().__setattr__(key, value)
-        else:
-            self.config[key] = value
 
 
 class Block:
@@ -128,6 +113,7 @@ class Block:
         :param cfg: BlockConfig 객체
         """
         self.name = name
+
         self.display_name = display_name
         if display_name is None:
             self.display_name = name
@@ -158,16 +144,38 @@ class Block:
         self.cfg.num_inputs = num_inputs
         self.cfg.num_outputs = num_outputs
         self.cfg.position = position
+
         for key, value in kwargs.items():
             self.cfg.config[key] = value
 
-        # self.cfg.ports = self.ports
-
     def __call__(self, *args, **kwargs):
-        raise NotImplementedError("You must implement __call__ method in subclass of Block")
+        """
+        kwargs 로
+        in0=value1, in1=value2, ... 형태로 받은다음
+        input_dict 로 변환해서 처리
+
+        return 으로
+        {out0:value1, out1:value2, ...} 형태로
+        dict로 반환
+
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        if args and kwargs:
+            raise ValueError("You must use only args or kwargs")
+        if args:
+            input_dict = {f"in{i}": args[i] for i in range(self.num_inputs)}
+        else:
+            input_dict = kwargs
+        return input_dict
+
+    def get_config(self):
+        return self.cfg
 
 
 class FunctionBlock(Block):
+    block_type = "FunctionBlock"
     def __init__(self, name: str,
                  *, function: callable,
                  cfg: BlockConfig = None,
@@ -192,9 +200,87 @@ class FunctionBlock(Block):
         self.function = function
 
         # 블럭의 input 개수랑 함수의 파라미터 개수가 일치하는지 확인
-        if len(inspect.signature(function).parameters) != self.cfg.num_inputs:
-            raise ValueError(f"Function parameter count({len(inspect.signature(function).parameters)})"
-                             f" must be equal to num_inputs({self.cfg.num_inputs})")
+        if set(inspect.signature(function).parameters) != \
+                set([f"in{i}" for i in range(self.cfg.num_inputs)]):
+            res = set([f"in{i}" for i in range(self.cfg.num_inputs)]) - set(inspect.signature(function).parameters)
+            raise ValueError(f"Function '{function.__name__}' must have parameters {list(res)}")
 
-    def __call__(self, *args):
-        return self.function(*args)
+    def __call__(self,*args, **kwargs):
+        if args and kwargs:
+            raise ValueError("You must use only args or kwargs")
+        if args:
+            result = self.function(*args)
+        else:
+            result = self.function(**kwargs)
+
+        if isinstance(result, Iterable) and hasattr(result, "__getitem__"):
+            return {f"out{i}": result[i] for i in range(len(result))}
+        else:
+            return {"out0": result}
+
+
+class MergedBlock(Block):
+    block_type = "MergedBlock"
+
+    def __init__(self, name: str, *,
+                 graph: BlockGraph,
+                 cfg: BlockConfig = None,
+                 **kwargs
+                 ) -> None:
+        """
+        MergedBlock 객체 초기화
+
+        Args:
+        -blocks(Block): 병합할 블록 객체
+
+        :param blocks: Block
+        """
+        self.inner_graph = graph
+        super().__init__(name=name, block_type="MergedBlock",
+                         num_inputs=graph.get_num_inputs(),
+                         num_outputs=graph.get_num_outputs(), **kwargs)
+
+        self.num_inputs = graph.get_num_inputs()
+        self.num_outputs = graph.get_num_outputs()
+        self.input_connections = {}
+        self.output_connections = {}
+
+        i = 0
+        for block_name in graph.get_start_blocks():
+            for port in graph.get_connection(block_name):
+                if "in" in port:
+                    self.input_connections[f"in{i}"] = (block_name, port)
+                    i += 1
+
+        i = 0
+        for block_name in graph.get_end_blocks():
+            for port in graph.get_connection(block_name):
+                if "out" in port:
+                    self.output_connections[f"{block_name}/{port}"] = f"out{i}"
+                    i += 1
+
+    def __call__(self, **kwargs):
+        """
+
+        input은 dict 형태로 받아질거임
+        """
+
+        input_dict = self.inner_graph.get_input_dict()
+
+        for key, value in kwargs.items():  # key = in0, in1, in2, ...
+            connected_block, connected_port = self.input_connections[key]
+            input_dict[connected_block][connected_port] = value
+
+        for block_name in input_dict:
+            if None in input_dict[block_name].values():
+                raise ValueError(f"Invalid input '{block_name}', {input_dict[block_name]}")
+
+        end_output, _ = self.inner_graph(input_dict)
+
+        output_dict = {port.split('/')[1]: None for port in self.output_connections.keys()}
+
+        for block, values in end_output.items():
+            for port, value in values.items():
+                output_dict[self.output_connections[f"{block}/{port}"]] = value
+
+        return output_dict
